@@ -50,12 +50,6 @@ import UIKit
         fileprivate static let animationWithBounceSpringDamping: CGFloat = 0.75
         fileprivate static let animationNoBounceDuration: TimeInterval = 0.2
     }
-    fileprivate struct DefaultColors {
-        fileprivate static let backgroundColor: UIColor = UIColor.white
-        fileprivate static let titleColor: UIColor = UIColor.black
-        fileprivate static let indicatorViewBackgroundColor: UIColor = UIColor.black
-        fileprivate static let selectedTitleColor: UIColor = UIColor.white
-    }
     
     // MARK: - Error handling
     public enum IndexError: Error {
@@ -66,41 +60,18 @@ import UIKit
     /// The selected index
     public fileprivate(set) var index: UInt
     /// The titles / options available for selection
-    public var titles: [String] {
-        get {
-            let titleLabels = titleLabelsView.subviews as! [UILabel]
-            return titleLabels.map { $0.text! }
-        }
-        set {
+    public var segments: [BetterSegmentedControlSegment] {
+        willSet {
             guard newValue.count > 1 else {
                 return
             }
-            let labels: [(UILabel, UILabel)] = newValue.map {
-                (string) -> (UILabel, UILabel) in
-                
-                let titleLabel = UILabel()
-                titleLabel.textColor = titleColor
-                titleLabel.text = string
-                titleLabel.lineBreakMode = .byTruncatingTail
-                titleLabel.textAlignment = .center
-                titleLabel.font = titleFont
-                
-                let selectedTitleLabel = UILabel()
-                selectedTitleLabel.textColor = selectedTitleColor
-                selectedTitleLabel.text = string
-                selectedTitleLabel.lineBreakMode = .byTruncatingTail
-                selectedTitleLabel.textAlignment = .center
-                selectedTitleLabel.font = selectedTitleFont
-                
-                return (titleLabel, selectedTitleLabel)
-            }
             
-            titleLabelsView.subviews.forEach({ $0.removeFromSuperview() })
-            selectedTitleLabelsView.subviews.forEach({ $0.removeFromSuperview() })
+            normalSegmentsView.subviews.forEach({ $0.removeFromSuperview() })
+            selectedSegmentsView.subviews.forEach({ $0.removeFromSuperview() })
             
-            for (inactiveLabel, activeLabel) in labels {
-                titleLabelsView.addSubview(inactiveLabel)
-                selectedTitleLabelsView.addSubview(activeLabel)
+            for segment in newValue {
+                normalSegmentsView.addSubview(segment.normalView)
+                selectedSegmentsView.addSubview(segment.selectedView)
             }
             
             setNeedsLayout()
@@ -133,50 +104,10 @@ import UIKit
     @IBInspectable public var indicatorViewInset: CGFloat = 2.0 {
         didSet { setNeedsLayout() }
     }
-    /// The text color of the non-selected titles / options
-    @IBInspectable public var titleColor: UIColor  {
-        didSet {
-            if !titleLabels.isEmpty {
-                for label in titleLabels {
-                    label.textColor = titleColor
-                }
-            }
-        }
-    }
-    /// The text color of the selected title / option
-    @IBInspectable public var selectedTitleColor: UIColor {
-        didSet {
-            if !selectedTitleLabels.isEmpty {
-                for label in selectedTitleLabels {
-                    label.textColor = selectedTitleColor
-                }
-            }
-        }
-    }
-    /// The titles' font
-    public var titleFont: UIFont = UILabel().font {
-        didSet {
-            if !titleLabels.isEmpty {
-                for label in titleLabels {
-                    label.font = titleFont
-                }
-            }
-        }
-    }
-    /// The selected title's font
-    public var selectedTitleFont: UIFont = UILabel().font {
-        didSet {
-            if !selectedTitleLabels.isEmpty {
-                for label in selectedTitleLabels {
-                    label.font = selectedTitleFont
-                }
-            }
-        }
-    }
-    
+
     // MARK: - Private properties
-    fileprivate let titleLabelsView = UIView()
-    fileprivate let selectedTitleLabelsView = UIView()
+    fileprivate let normalSegmentsView = UIView()
+    fileprivate let selectedSegmentsView = UIView()
     fileprivate let indicatorView = IndicatorView()
     fileprivate var initialIndicatorViewFrame: CGRect?
     
@@ -185,75 +116,57 @@ import UIKit
     
     fileprivate var width: CGFloat { return bounds.width }
     fileprivate var height: CGFloat { return bounds.height }
-    fileprivate var titleLabelsCount: Int { return titleLabelsView.subviews.count }
-    fileprivate var titleLabels: [UILabel] { return titleLabelsView.subviews as! [UILabel] }
-    fileprivate var selectedTitleLabels: [UILabel] { return selectedTitleLabelsView.subviews as! [UILabel] }
+    fileprivate var normalSegments: [UIView] { return normalSegmentsView.subviews }
+    fileprivate var normalSegmentsCount: Int { return normalSegmentsView.subviews.count }
     fileprivate var totalInsetSize: CGFloat { return indicatorViewInset * 2.0 }
-    fileprivate lazy var defaultTitles: [String] = { return ["First", "Second"] }()
+    fileprivate lazy var defaultSegments: [BetterSegmentedControlSegment] = {
+        let segment1 = BetterSegmentedControlLabelSegment()
+        segment1.text = "First"
+        let segment2 = BetterSegmentedControlLabelSegment()
+        segment2.text = "Second"
+        return [segment1, segment2]
+    }()
     
     // MARK: - Lifecycle
     required public init?(coder aDecoder: NSCoder) {
         self.index = 0
-        self.titleColor = DefaultColors.titleColor
-        self.selectedTitleColor = DefaultColors.selectedTitleColor
+        let segment1 = BetterSegmentedControlLabelSegment()
+        segment1.text = "First"
+        let segment2 = BetterSegmentedControlLabelSegment()
+        segment2.text = "Second"
+        segments = [segment1, segment2]
         super.init(coder: aDecoder)
-        titles = defaultTitles
         finishInit()
     }
     public init(frame: CGRect,
-                titles: [String],
+                segments: [BetterSegmentedControlSegment],
                 index: UInt,
-                backgroundColor: UIColor,
-                titleColor: UIColor,
-                indicatorViewBackgroundColor: UIColor,
-                selectedTitleColor: UIColor) {
+                indicatorViewBackgroundColor: UIColor) {
         self.index = index
-        self.titleColor = titleColor
-        self.selectedTitleColor = selectedTitleColor
+        self.segments = segments
         super.init(frame: frame)
-        self.titles = titles
         self.backgroundColor = backgroundColor
         self.indicatorViewBackgroundColor = indicatorViewBackgroundColor
         finishInit()
     }
-    @available(*, deprecated, message: "Use init(frame:titles:index:backgroundColor:titleColor:indicatorViewBackgroundColor:selectedTitleColor:) instead.")
-    convenience public init(titles: [String]) {
-        self.init(frame: CGRect.zero,
-                  titles: titles,
-                  index: 0,
-                  backgroundColor: DefaultColors.backgroundColor,
-                  titleColor: DefaultColors.titleColor,
-                  indicatorViewBackgroundColor: DefaultColors.indicatorViewBackgroundColor,
-                  selectedTitleColor: DefaultColors.selectedTitleColor)
-    }
-    
-    @available(*, deprecated, message: "Use init(frame:titles:index:backgroundColor:titleColor:indicatorViewBackgroundColor:selectedTitleColor:) instead.")
-    convenience override public init(frame: CGRect) {
-        self.init(frame: frame,
-                  titles: ["First", "Second"],
-                  index: 0,
-                  backgroundColor: DefaultColors.backgroundColor,
-                  titleColor: DefaultColors.titleColor,
-                  indicatorViewBackgroundColor: DefaultColors.indicatorViewBackgroundColor,
-                  selectedTitleColor: DefaultColors.selectedTitleColor)
-    }
     @available(*, unavailable, message: "Use init(frame:titles:index:backgroundColor:titleColor:indicatorViewBackgroundColor:selectedTitleColor:) instead.")
     convenience init() {
+        let segment1 = BetterSegmentedControlLabelSegment()
+        segment1.text = "First"
+        let segment2 = BetterSegmentedControlLabelSegment()
+        segment2.text = "Second"
         self.init(frame: CGRect.zero,
-                  titles: ["First", "Second"],
+                  segments: [segment1, segment2],
                   index: 0,
-                  backgroundColor: DefaultColors.backgroundColor,
-                  titleColor: DefaultColors.titleColor,
-                  indicatorViewBackgroundColor: DefaultColors.indicatorViewBackgroundColor,
-                  selectedTitleColor: DefaultColors.selectedTitleColor)
+                  indicatorViewBackgroundColor: .white)
     }
     fileprivate func finishInit() {
         layer.masksToBounds = true
         
-        addSubview(titleLabelsView)
+        addSubview(normalSegmentsView)
         addSubview(indicatorView)
-        addSubview(selectedTitleLabelsView)
-        selectedTitleLabelsView.layer.mask = indicatorView.titleMaskView.layer
+        addSubview(selectedSegmentsView)
+        selectedSegmentsView.layer.mask = indicatorView.titleMaskView.layer
         
         tapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(BetterSegmentedControl.tapped(_:)))
         addGestureRecognizer(tapGestureRecognizer)
@@ -265,19 +178,19 @@ import UIKit
     override open func layoutSubviews() {
         super.layoutSubviews()
         
-        guard titleLabelsCount > 1 else {
+        guard normalSegmentsCount > 1 else {
             return
         }
         
-        titleLabelsView.frame = bounds
-        selectedTitleLabelsView.frame = bounds
+        normalSegmentsView.frame = bounds
+        selectedSegmentsView.frame = bounds
         
         indicatorView.frame = elementFrame(forIndex: index)
         
-        for index in 0...titleLabelsCount-1 {
+        for index in 0...normalSegmentsCount-1 {
             let frame = elementFrame(forIndex: UInt(index))
-            titleLabelsView.subviews[index].frame = frame
-            selectedTitleLabelsView.subviews[index].frame = frame
+            normalSegmentsView.subviews[index].frame = frame
+            selectedSegmentsView.subviews[index].frame = frame
         }
     }
     
@@ -291,7 +204,7 @@ import UIKit
      - throws: An error of type IndexBeyondBounds(UInt) is thrown if an index beyond the available indices is passed.
      */
     public func set(index: UInt, animated: Bool = true) throws {
-        guard titleLabels.indices.contains(Int(index)) else {
+        guard segments.indices.contains(Int(index)) else {
             throw IndexError.indexBeyondBounds(index)
         }
         let oldIndex = self.index
@@ -324,18 +237,18 @@ import UIKit
     
     // MARK: - Helpers
     fileprivate func elementFrame(forIndex index: UInt) -> CGRect {
-        let elementWidth = (width - totalInsetSize) / CGFloat(titleLabelsCount)
+        let elementWidth = (width - totalInsetSize) / CGFloat(normalSegmentsCount)
         return CGRect(x: CGFloat(index) * elementWidth + indicatorViewInset,
                       y: indicatorViewInset,
                       width: elementWidth,
                       height: height - totalInsetSize)
     }
     fileprivate func nearestIndex(toPoint point: CGPoint) -> UInt {
-        let distances = titleLabels.map { abs(point.x - $0.center.x) }
+        let distances = normalSegments.map { abs(point.x - $0.center.x) }
         return UInt(distances.index(of: distances.min()!)!)
     }
     fileprivate func moveIndicatorView() {
-        self.indicatorView.frame = self.titleLabels[Int(self.index)].frame
+        self.indicatorView.frame = self.normalSegments[Int(self.index)].frame
         self.layoutIfNeeded()
     }
     
